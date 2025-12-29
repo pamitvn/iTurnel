@@ -119,20 +119,17 @@ struct GeneralSettingsView: View {
                     saveSettings()
                 }
 
-                HStack {
-                    TextField("Default Host", text: $settings.defaultLocalHost)
-                        .textFieldStyle(.roundedBorder)
+                TextField("Default Host", text: $settings.defaultLocalHost)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: settings.defaultLocalHost) { _, _ in
+                        saveSettings()
+                    }
 
-                    TextField("Default Port", value: $settings.defaultLocalPort, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
-                }
-                .onChange(of: settings.defaultLocalHost) { _, _ in
-                    saveSettings()
-                }
-                .onChange(of: settings.defaultLocalPort) { _, _ in
-                    saveSettings()
-                }
+                TextField("Default Port", value: $settings.defaultLocalPort, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: settings.defaultLocalPort) { _, _ in
+                        saveSettings()
+                    }
             }
         }
         .formStyle(.grouped)
