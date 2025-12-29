@@ -137,6 +137,64 @@ actor CloudflaredService {
         }
     }
 
+    func startConfigBasedTunnel(
+        id: UUID,
+        configFilePath: String,
+        tunnelName: String,
+        cloudflaredPath: String,
+        onOutput: @escaping @Sendable (String) -> Void,
+        onStatusChange: @escaping @Sendable (TunnelStatus, String?) -> Void
+    ) async throws {
+        guard FileManager.default.fileExists(atPath: cloudflaredPath) else {
+            throw CloudflaredError.binaryNotFound(cloudflaredPath)
+        }
+
+        guard FileManager.default.fileExists(atPath: configFilePath) else {
+            throw CloudflaredError.configFileNotFound(configFilePath)
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: cloudflaredPath)
+        process.arguments = ["tunnel", "--config", configFilePath, "run", tunnelName]
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = outputPipe
+
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty, let output = String(data: data, encoding: .utf8) else { return }
+
+            onOutput(output)
+
+            // Check for connection registered
+            if Self.isConnectionRegistered(output) {
+                let url = Self.parsePublicURL(from: output)
+                onStatusChange(.connected, url)
+            }
+
+            // Check for errors
+            if output.lowercased().contains("error") || output.lowercased().contains("failed") {
+                if !output.contains("retrying") {
+                    onStatusChange(.error, output)
+                }
+            }
+        }
+
+        process.terminationHandler = { _ in
+            onStatusChange(.stopped, nil)
+        }
+
+        do {
+            try process.run()
+            runningProcesses[id] = process
+            outputPipes[id] = outputPipe
+            onStatusChange(.starting, nil)
+        } catch {
+            throw CloudflaredError.processStartFailed(error.localizedDescription)
+        }
+    }
+
     func stopTunnel(id: UUID) async {
         guard let process = runningProcesses[id] else { return }
 
@@ -188,6 +246,7 @@ enum CloudflaredError: LocalizedError {
     case binaryNotFound(String)
     case processStartFailed(String)
     case tunnelFailed(String)
+    case configFileNotFound(String)
 
     var errorDescription: String? {
         switch self {
@@ -197,6 +256,8 @@ enum CloudflaredError: LocalizedError {
             return "Failed to start tunnel process: \(reason)"
         case .tunnelFailed(let reason):
             return "Tunnel failed: \(reason)"
+        case .configFileNotFound(let path):
+            return "Config file not found at \(path)"
         }
     }
 }

@@ -25,6 +25,11 @@ enum TunnelProtocol: String, Codable, CaseIterable {
     case ssh
 }
 
+enum NamedTunnelMode: String, Codable, CaseIterable {
+    case token = "Token"
+    case configFile = "Config File"
+}
+
 struct Tunnel: Identifiable, Codable, Equatable {
     let id: UUID
     var name: String
@@ -42,6 +47,11 @@ struct Tunnel: Identifiable, Codable, Equatable {
     // For named tunnels
     var tunnelToken: String?
     var tunnelName: String?
+
+    // For config-based named tunnels
+    var namedTunnelMode: NamedTunnelMode?
+    var ingressRules: [IngressRule]
+    var configFilePath: String?
 
     // Max log lines to prevent memory issues
     static let maxLogLines = 1000
@@ -64,7 +74,10 @@ struct Tunnel: Identifiable, Codable, Equatable {
         errorMessage: String? = nil,
         logs: [String] = [],
         tunnelToken: String? = nil,
-        tunnelName: String? = nil
+        tunnelName: String? = nil,
+        namedTunnelMode: NamedTunnelMode? = nil,
+        ingressRules: [IngressRule] = [],
+        configFilePath: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -80,6 +93,9 @@ struct Tunnel: Identifiable, Codable, Equatable {
         self.logs = logs
         self.tunnelToken = tunnelToken
         self.tunnelName = tunnelName
+        self.namedTunnelMode = namedTunnelMode
+        self.ingressRules = ingressRules
+        self.configFilePath = configFilePath
     }
 }
 
@@ -90,9 +106,15 @@ struct TunnelConfiguration: Codable, Equatable {
     var tunnelProtocol: TunnelProtocol
     var tunnelType: TunnelType
 
-    // For named tunnels
+    // For named tunnels - Token mode
     var tunnelToken: String?
     var tunnelName: String?
+
+    // For named tunnels - Config mode
+    var namedTunnelMode: NamedTunnelMode
+    var tunnelUUID: String?
+    var credentialsFilePath: String?
+    var ingressRules: [IngressRule]
 
     // Advanced options
     var noTLSVerify: Bool
@@ -103,6 +125,12 @@ struct TunnelConfiguration: Codable, Equatable {
         "\(tunnelProtocol.rawValue)://\(localHost):\(localPort)"
     }
 
+    var usesLocalIngress: Bool {
+        tunnelType == .namedTunnel &&
+        namedTunnelMode == .configFile &&
+        !ingressRules.isEmpty
+    }
+
     init(
         name: String,
         localHost: String = "localhost",
@@ -111,6 +139,10 @@ struct TunnelConfiguration: Codable, Equatable {
         tunnelType: TunnelType = .namedTunnel,
         tunnelToken: String? = nil,
         tunnelName: String? = nil,
+        namedTunnelMode: NamedTunnelMode = .token,
+        tunnelUUID: String? = nil,
+        credentialsFilePath: String? = nil,
+        ingressRules: [IngressRule] = [],
         noTLSVerify: Bool = false,
         httpHostHeader: String? = nil,
         originServerName: String? = nil
@@ -122,8 +154,42 @@ struct TunnelConfiguration: Codable, Equatable {
         self.tunnelType = tunnelType
         self.tunnelToken = tunnelToken
         self.tunnelName = tunnelName
+        self.namedTunnelMode = namedTunnelMode
+        self.tunnelUUID = tunnelUUID
+        self.credentialsFilePath = credentialsFilePath
+        self.ingressRules = ingressRules
         self.noTLSVerify = noTLSVerify
         self.httpHostHeader = httpHostHeader
         self.originServerName = originServerName
+    }
+
+    // Custom decoder for backwards compatibility with existing presets
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        name = try container.decode(String.self, forKey: .name)
+        localHost = try container.decode(String.self, forKey: .localHost)
+        localPort = try container.decode(Int.self, forKey: .localPort)
+        tunnelProtocol = try container.decode(TunnelProtocol.self, forKey: .tunnelProtocol)
+        tunnelType = try container.decode(TunnelType.self, forKey: .tunnelType)
+        tunnelToken = try container.decodeIfPresent(String.self, forKey: .tunnelToken)
+        tunnelName = try container.decodeIfPresent(String.self, forKey: .tunnelName)
+
+        // New fields with defaults for backwards compatibility
+        namedTunnelMode = try container.decodeIfPresent(NamedTunnelMode.self, forKey: .namedTunnelMode) ?? .token
+        tunnelUUID = try container.decodeIfPresent(String.self, forKey: .tunnelUUID)
+        credentialsFilePath = try container.decodeIfPresent(String.self, forKey: .credentialsFilePath)
+        ingressRules = try container.decodeIfPresent([IngressRule].self, forKey: .ingressRules) ?? []
+
+        noTLSVerify = try container.decodeIfPresent(Bool.self, forKey: .noTLSVerify) ?? false
+        httpHostHeader = try container.decodeIfPresent(String.self, forKey: .httpHostHeader)
+        originServerName = try container.decodeIfPresent(String.self, forKey: .originServerName)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, localHost, localPort, tunnelProtocol, tunnelType
+        case tunnelToken, tunnelName
+        case namedTunnelMode, tunnelUUID, credentialsFilePath, ingressRules
+        case noTLSVerify, httpHostHeader, originServerName
     }
 }

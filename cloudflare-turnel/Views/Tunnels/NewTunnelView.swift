@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct NewTunnelView: View {
     @Environment(AppState.self) private var appState
@@ -18,9 +19,28 @@ struct NewTunnelView: View {
     @State private var autoStartOnLaunch = false
     @State private var useDefaultToken = true
 
+    // Config mode state
+    @State private var namedTunnelMode: NamedTunnelMode = .token
+    @State private var tunnelUUID = ""
+    @State private var credentialsPath = ""
+    @State private var ingressRules: [IngressRule] = []
+
     private var isValid: Bool {
-        !name.isEmpty && !localPort.isEmpty && Int(localPort) != nil &&
-        (tunnelType == .quickTunnel || !effectiveToken.isEmpty)
+        guard !name.isEmpty && !localPort.isEmpty && Int(localPort) != nil else {
+            return false
+        }
+
+        if tunnelType == .quickTunnel {
+            return true
+        }
+
+        // Named tunnel validation
+        if namedTunnelMode == .token {
+            return !effectiveToken.isEmpty
+        } else {
+            // Config mode requires UUID, credentials, and at least one ingress rule
+            return !tunnelUUID.isEmpty && !credentialsPath.isEmpty && !ingressRules.isEmpty
+        }
     }
 
     private var effectiveToken: String {
@@ -138,29 +158,94 @@ struct NewTunnelView: View {
                     if tunnelType == .namedTunnel {
                         Divider()
 
-                        // Authentication
+                        // Configuration Mode
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Authentication")
+                            Text("Configuration Mode")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
 
-                            if appState.settings.defaultTunnelToken != nil {
-                                Toggle("Use default token", isOn: $useDefaultToken)
+                            Picker("", selection: $namedTunnelMode) {
+                                ForEach(NamedTunnelMode.allCases, id: \.self) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
                             }
+                            .pickerStyle(.segmented)
 
-                            if !useDefaultToken || appState.settings.defaultTunnelToken == nil {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Tunnel Token")
+                            Text(namedTunnelMode == .token
+                                ? "Ingress rules are configured in Cloudflare Dashboard"
+                                : "Define local ingress rules below")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if namedTunnelMode == .token {
+                            Divider()
+
+                            // Token Authentication
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Authentication")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+
+                                if appState.settings.defaultTunnelToken != nil {
+                                    Toggle("Use default token", isOn: $useDefaultToken)
+                                }
+
+                                if !useDefaultToken || appState.settings.defaultTunnelToken == nil {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Tunnel Token")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        SecureField("Enter your tunnel token", text: $tunnelToken)
+                                            .textFieldStyle(.roundedBorder)
+                                    }
+
+                                    Text("Get your token from the Cloudflare Zero Trust dashboard")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
-                                    SecureField("Enter your tunnel token", text: $tunnelToken)
+                                }
+                            }
+                        } else {
+                            Divider()
+
+                            // Config File Mode
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Tunnel Configuration")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Tunnel UUID")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    TextField("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", text: $tunnelUUID)
                                         .textFieldStyle(.roundedBorder)
                                 }
 
-                                Text("Get your token from the Cloudflare Zero Trust dashboard")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text("Credentials File")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Button("Browse...") {
+                                            selectCredentialsFile()
+                                        }
+                                        .font(.caption)
+                                    }
+                                    TextField("~/.cloudflared/xxx.json", text: $credentialsPath)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+
+                                Text("Run 'cloudflared tunnel login' to create credentials")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
+
+                            Divider()
+
+                            // Ingress Rules
+                            IngressRulesListView(rules: $ingressRules)
                         }
                     }
 
@@ -211,7 +296,12 @@ struct NewTunnelView: View {
             localPort: Int(localPort) ?? 8080,
             tunnelProtocol: selectedProtocol,
             tunnelType: tunnelType,
-            tunnelToken: tunnelType == .namedTunnel ? effectiveToken : nil,
+            tunnelToken: tunnelType == .namedTunnel && namedTunnelMode == .token ? effectiveToken : nil,
+            tunnelName: tunnelType == .namedTunnel && namedTunnelMode == .configFile ? tunnelUUID : nil,
+            namedTunnelMode: namedTunnelMode,
+            tunnelUUID: namedTunnelMode == .configFile ? tunnelUUID : nil,
+            credentialsFilePath: namedTunnelMode == .configFile ? credentialsPath : nil,
+            ingressRules: namedTunnelMode == .configFile ? ingressRules : [],
             noTLSVerify: false
         )
 
@@ -229,6 +319,19 @@ struct NewTunnelView: View {
         }
 
         closeForm()
+    }
+
+    private func selectCredentialsFile() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.json]
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cloudflared")
+
+        if panel.runModal() == .OK, let url = panel.url {
+            credentialsPath = url.path
+        }
     }
 }
 

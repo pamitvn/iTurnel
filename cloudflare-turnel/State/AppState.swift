@@ -35,6 +35,7 @@ final class AppState {
 
     // Services
     private let cloudflaredService = CloudflaredService()
+    private let configFileService = ConfigFileService()
     private let persistenceService = PersistenceService.shared
     private let notificationService = NotificationService.shared
 
@@ -103,7 +104,7 @@ final class AppState {
     // MARK: - Tunnel Management
 
     func startTunnel(config: TunnelConfiguration) async {
-        let tunnel = Tunnel(
+        var tunnel = Tunnel(
             id: UUID(),
             name: config.name,
             type: config.tunnelType,
@@ -113,7 +114,9 @@ final class AppState {
             status: .starting,
             startedAt: Date(),
             tunnelToken: config.tunnelToken,
-            tunnelName: config.tunnelName
+            tunnelName: config.tunnelName,
+            namedTunnelMode: config.namedTunnelMode,
+            ingressRules: config.ingressRules
         )
 
         tunnels.append(tunnel)
@@ -135,7 +138,45 @@ final class AppState {
                         }
                     }
                 )
+            } else if config.usesLocalIngress {
+                // Config-based named tunnel with local ingress rules
+                guard let tunnelUUID = config.tunnelUUID,
+                      let credentialsPath = config.credentialsFilePath else {
+                    throw CloudflaredError.tunnelFailed("Missing tunnel UUID or credentials path")
+                }
+
+                // Generate config file
+                let configPath = try await configFileService.generateConfigFile(
+                    tunnelId: tunnel.id,
+                    tunnelUUID: tunnelUUID,
+                    credentialsPath: credentialsPath,
+                    ingressRules: config.ingressRules,
+                    defaultService: config.localURL
+                )
+
+                // Update tunnel with config path
+                if let index = tunnels.firstIndex(where: { $0.id == tunnel.id }) {
+                    tunnels[index].configFilePath = configPath.path
+                }
+
+                try await cloudflaredService.startConfigBasedTunnel(
+                    id: tunnel.id,
+                    configFilePath: configPath.path,
+                    tunnelName: tunnelUUID,
+                    cloudflaredPath: settings.cloudflaredPath,
+                    onOutput: { [weak self] output in
+                        Task { @MainActor in
+                            self?.handleTunnelOutput(id: tunnel.id, output: output)
+                        }
+                    },
+                    onStatusChange: { [weak self] status, url in
+                        Task { @MainActor in
+                            self?.handleStatusChange(id: tunnel.id, status: status, publicURL: url)
+                        }
+                    }
+                )
             } else {
+                // Token-based named tunnel
                 guard let token = config.tunnelToken ?? settings.defaultTunnelToken else {
                     throw CloudflaredError.tunnelFailed("No tunnel token provided")
                 }
@@ -158,6 +199,8 @@ final class AppState {
                 )
             }
         } catch {
+            // Clean up config file if it was generated
+            await configFileService.deleteConfigFile(tunnelId: tunnel.id)
             // Remove the failed tunnel from the list
             tunnels.removeAll { $0.id == tunnel.id }
             showError(error.localizedDescription)
@@ -182,6 +225,11 @@ final class AppState {
         updateTunnelStatus(id: id, status: .stopping)
 
         await cloudflaredService.stopTunnel(id: id)
+
+        // Clean up config file if it was generated
+        if tunnel.configFilePath != nil {
+            await configFileService.deleteConfigFile(tunnelId: id)
+        }
 
         // Add to history
         let entry = HistoryEntry(

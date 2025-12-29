@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PresetListView: View {
     @Environment(AppState.self) private var appState
@@ -151,6 +152,12 @@ struct PresetFormView: View {
     @State private var tunnelType: TunnelType = .namedTunnel
     @State private var autoStartOnLaunch = false
 
+    // Config mode state
+    @State private var namedTunnelMode: NamedTunnelMode = .token
+    @State private var tunnelUUID = ""
+    @State private var credentialsPath = ""
+    @State private var ingressRules: [IngressRule] = []
+
     init(preset: Preset? = nil, isEditing: Bool = false) {
         self.preset = preset
         self.isEditing = isEditing
@@ -257,6 +264,69 @@ struct PresetFormView: View {
                         }
                     }
 
+                    if tunnelType == .namedTunnel {
+                        Divider()
+
+                        // Configuration Mode
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Configuration Mode")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            Picker("", selection: $namedTunnelMode) {
+                                ForEach(NamedTunnelMode.allCases, id: \.self) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text(namedTunnelMode == .token
+                                ? "Ingress rules are configured in Cloudflare Dashboard"
+                                : "Define local ingress rules below")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if namedTunnelMode == .configFile {
+                            Divider()
+
+                            // Config File Mode
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Tunnel Configuration")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Tunnel UUID")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    TextField("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", text: $tunnelUUID)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text("Credentials File")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Button("Browse...") {
+                                            selectCredentialsFile()
+                                        }
+                                        .font(.caption)
+                                    }
+                                    TextField("~/.cloudflared/xxx.json", text: $credentialsPath)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+                            }
+
+                            Divider()
+
+                            // Ingress Rules
+                            IngressRulesListView(rules: $ingressRules)
+                        }
+                    }
+
                     Divider()
 
                     Toggle("Auto-start on Launch", isOn: $autoStartOnLaunch)
@@ -289,6 +359,10 @@ struct PresetFormView: View {
                 selectedProtocol = preset.configuration.tunnelProtocol
                 tunnelType = preset.configuration.tunnelType
                 autoStartOnLaunch = preset.autoStartOnLaunch
+                namedTunnelMode = preset.configuration.namedTunnelMode
+                tunnelUUID = preset.configuration.tunnelUUID ?? ""
+                credentialsPath = preset.configuration.credentialsFilePath ?? ""
+                ingressRules = preset.configuration.ingressRules
             }
         }
     }
@@ -299,7 +373,12 @@ struct PresetFormView: View {
             localHost: localHost,
             localPort: Int(localPort) ?? 8080,
             tunnelProtocol: selectedProtocol,
-            tunnelType: tunnelType
+            tunnelType: tunnelType,
+            tunnelName: namedTunnelMode == .configFile ? tunnelUUID : nil,
+            namedTunnelMode: namedTunnelMode,
+            tunnelUUID: namedTunnelMode == .configFile ? tunnelUUID : nil,
+            credentialsFilePath: namedTunnelMode == .configFile ? credentialsPath : nil,
+            ingressRules: namedTunnelMode == .configFile ? ingressRules : []
         )
 
         if isEditing, let existing = preset {
@@ -318,6 +397,19 @@ struct PresetFormView: View {
         }
 
         closeForm()
+    }
+
+    private func selectCredentialsFile() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.json]
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cloudflared")
+
+        if panel.runModal() == .OK, let url = panel.url {
+            credentialsPath = url.path
+        }
     }
 }
 
