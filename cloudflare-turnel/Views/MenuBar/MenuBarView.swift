@@ -1,6 +1,6 @@
 //
 //  MenuBarView.swift
-//  cloudflare-turnel
+//  iturnel
 //
 
 import SwiftUI
@@ -60,7 +60,7 @@ struct MenuBarView: View {
     private var headerView: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Cloudflare Tunnel")
+                Text("iTurnel")
                     .font(.headline)
                 Text(appState.statusText)
                     .font(.caption)

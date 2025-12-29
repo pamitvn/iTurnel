@@ -1,6 +1,6 @@
 //
 //  SettingsView.swift
-//  cloudflare-turnel
+//  iturnel
 //
 
 import SwiftUI
@@ -286,7 +286,7 @@ struct AboutView: View {
                 .foregroundColor(.accentColor)
 
             VStack(spacing: 4) {
-                Text("Cloudflare Tunnel Manager")
+                Text("iTurnel")
                     .font(.title2)
                     .fontWeight(.semibold)
 

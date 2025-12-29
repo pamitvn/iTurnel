@@ -1,14 +1,14 @@
 //
 //  Constants.swift
-//  cloudflare-turnel
+//  iturnel
 //
 
 import Foundation
 
 enum Constants {
-    static let appName = "Cloudflare Tunnel Manager"
-    static let bundleIdentifier = "io.trustshop.cloudflare-turnel"
-    static let keychainService = "io.trustshop.cloudflare-turnel.tokens"
+    static let appName = "iTurnel"
+    static let bundleIdentifier = "io.trustshop.iturnel"
+    static let keychainService = "io.trustshop.iturnel.tokens"
 
     static let defaultCloudflaredPaths = [
         "/opt/homebrew/bin/cloudflared",

@@ -5,8 +5,8 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSUserNotificationUsageDescription</key>
-    <string>Cloudflare Tunnel Manager needs to send notifications when tunnels connect or disconnect.</string>
+    <string>iTurnel needs to send notifications when tunnels connect or disconnect.</string>
     <key>CFBundleDisplayName</key>
-    <string>Cloudflare Tunnel Manager</string>
+    <string>iTurnel</string>
 </dict>
 </plist>

@@ -1,6 +1,6 @@
 //
 //  TunnelListView.swift
-//  cloudflare-turnel
+//  iturnel
 //
 
 import SwiftUI
@@ -111,6 +111,15 @@ struct TunnelRowView: View {
 
     private var actionButtons: some View {
         HStack(spacing: 8) {
+            Button {
+                LogsWindowManager.shared.showLogs(for: tunnel, appState: appState)
+            } label: {
+                Image(systemName: "text.alignleft")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("View Logs")
+
             if let url = tunnel.publicURL {
                 Button {
                     appState.copyToClipboard(url)

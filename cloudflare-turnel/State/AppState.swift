@@ -1,6 +1,6 @@
 //
 //  AppState.swift
-//  cloudflare-turnel
+//  iturnel
 //
 
 import SwiftUI
@@ -238,7 +238,17 @@ final class AppState {
     }
 
     private func handleTunnelOutput(id: UUID, output: String) {
-        // For debugging
+        guard let index = tunnels.firstIndex(where: { $0.id == id }) else { return }
+
+        // Split output into lines and append
+        let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        tunnels[index].logs.append(contentsOf: lines)
+
+        // Trim logs if exceeding max limit
+        if tunnels[index].logs.count > Tunnel.maxLogLines {
+            tunnels[index].logs = Array(tunnels[index].logs.suffix(Tunnel.maxLogLines))
+        }
+
         #if DEBUG
         print("[Tunnel \(id.uuidString.prefix(8))] \(output)")
         #endif

@@ -1,6 +1,6 @@
 //
 //  Tunnel.swift
-//  cloudflare-turnel
+//  iturnel
 //
 
 import Foundation
@@ -37,10 +37,14 @@ struct Tunnel: Identifiable, Codable, Equatable {
     var processId: Int32?
     var startedAt: Date?
     var errorMessage: String?
+    var logs: [String] = []
 
     // For named tunnels
     var tunnelToken: String?
     var tunnelName: String?
+
+    // Max log lines to prevent memory issues
+    static let maxLogLines = 1000
 
     var localURL: String {
         "\(tunnelProtocol.rawValue)://\(localHost):\(localPort)"
@@ -58,6 +62,7 @@ struct Tunnel: Identifiable, Codable, Equatable {
         processId: Int32? = nil,
         startedAt: Date? = nil,
         errorMessage: String? = nil,
+        logs: [String] = [],
         tunnelToken: String? = nil,
         tunnelName: String? = nil
     ) {
@@ -72,6 +77,7 @@ struct Tunnel: Identifiable, Codable, Equatable {
         self.processId = processId
         self.startedAt = startedAt
         self.errorMessage = errorMessage
+        self.logs = logs
         self.tunnelToken = tunnelToken
         self.tunnelName = tunnelName
     }
