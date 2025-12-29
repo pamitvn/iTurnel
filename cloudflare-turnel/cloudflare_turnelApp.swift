@@ -8,10 +8,31 @@
 import SwiftUI
 
 @main
-struct cloudflare_turnelApp: App {
+struct CloudflareTunnelApp: App {
+    @State private var appState = AppState()
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        // Menu bar app
+        MenuBarExtra {
+            MenuBarView()
+                .environment(appState)
+        } label: {
+            MenuBarLabel(hasActiveTunnels: appState.hasActiveTunnels)
         }
+        .menuBarExtraStyle(.window)
+
+        // Settings window
+        Settings {
+            SettingsView()
+        }
+    }
+}
+
+struct MenuBarLabel: View {
+    let hasActiveTunnels: Bool
+
+    var body: some View {
+        Image(hasActiveTunnels ? "MenuBarIconFill" : "MenuBarIconEmpty")
+            .renderingMode(.template)
     }
 }
