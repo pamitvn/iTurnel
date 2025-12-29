@@ -10,7 +10,7 @@ actor ConfigFileService {
 
     private var configsDirectory: URL {
         fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("CloudflareTunnel")
+            .appendingPathComponent("iTurnel")
             .appendingPathComponent("configs")
     }
 

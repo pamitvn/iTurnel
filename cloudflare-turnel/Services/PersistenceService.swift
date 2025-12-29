@@ -14,7 +14,7 @@ class PersistenceService {
 
     private var appSupportURL: URL {
         fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("CloudflareTunnel")
+            .appendingPathComponent("iTurnel")
     }
 
     private init() {
